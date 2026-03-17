@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 /**
  * probe-limits.js  —  Baton skill helper
+ *
+ * SECURITY NOTICE
+ * This script reads ~/.openclaw/openclaw.json (provider configs, API key references)
+ * and ~/.openclaw/agents/*/agent/models.json (per-agent model configs).
+ * API keys are resolved from environment variables or config only to make outbound
+ * HTTP requests to provider rate-limit APIs. Keys are NEVER written to stdout,
+ * logged to stderr, stored in any Baton state file, or included in any output JSON.
+ * All output JSON is sanitised before printing (see sanitiseOutput).
+ *
  * No hardcoded providers, limit values, model names, or API endpoints.
  * Provider probe configs live in provider-probes.json.
  * All limit values come from user input or live API queries.
@@ -31,6 +40,31 @@ function writeJson(f,d){const tmp=f+'.tmp';fs.writeFileSync(tmp,JSON.stringify(d
 function hashFile(f){try{return crypto.createHash('sha256').update(fs.readFileSync(f,'utf8')).digest('hex');}catch{return null;}}
 function now(){return new Date().toISOString();}
 function log(m){process.stderr.write('[probe-limits] '+m+'\n');}
+
+/**
+ * Sanitise any object before writing to stdout.
+ * Removes fields that could contain API key material.
+ * Keys are used only in-memory for HTTP requests — never output.
+ */
+function sanitiseOutput(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const REDACTED_KEYS = new Set(['apiKey','api_key','key','secret','token','password','authorization','auth','credential']);
+  const clean = Array.isArray(obj) ? [] : {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (REDACTED_KEYS.has(k.toLowerCase())) {
+      clean[k] = '[redacted]';
+    } else if (v && typeof v === 'object') {
+      clean[k] = sanitiseOutput(v);
+    } else {
+      clean[k] = v;
+    }
+  }
+  return clean;
+}
+
+function safeLog(obj) {
+  console.log(JSON.stringify(sanitiseOutput(obj)));
+}
 function windowToSeconds(w){
   if(!w)return 86400;
   const{kind,value=1,hours}=w;
@@ -158,15 +192,15 @@ async function buildRegistry(){
   }catch(e){log(`WARNING: could not scan agent models.json files: ${e.message}`);}
   writeJson(REGISTRY,{builtAt:now(),configHash:hashFile(CONFIG_FILE),models});
   log(`Registry: ${Object.keys(models).length} models (${Object.values(models).filter(m=>m.agentScope).length} agent-scoped)`);
-  console.log(JSON.stringify({ok:true,modelCount:Object.keys(models).length,models:Object.keys(models)}));
+  safeLog({ok:true,modelCount:Object.keys(models).length,models:Object.keys(models)});
 }
 
 async function checkConfigHash(){
   ensureDir();const cur=hashFile(CONFIG_FILE);
   const saved=fs.existsSync(HASH_FILE)?fs.readFileSync(HASH_FILE,'utf8').trim():null;
-  if(!saved){if(cur)fs.writeFileSync(HASH_FILE,cur);console.log(JSON.stringify({changed:true,reason:'first_run',hash:cur}));return;}
-  if(cur!==saved)console.log(JSON.stringify({changed:true,hash:cur,previousHash:saved}));
-  else console.log(JSON.stringify({changed:false,hash:cur}));
+  if(!saved){if(cur)fs.writeFileSync(HASH_FILE,cur);safeLog({changed:true,reason:'first_run',hash:cur});return;}
+  if(cur!==saved)safeLog({changed:true,hash:cur,previousHash:saved});
+  else safeLog({changed:false,hash:cur});
 }
 
 async function diffConfig(){
@@ -181,31 +215,31 @@ async function diffConfig(){
     const pid=mid.slice(0,si),mk=mid.slice(si+1);const pl=limits?.providers?.[pid];
     if(pl?.topology==='perModel'&&!pl.models?.[mk]){(newModels[pid]??=[]).push(mk);}
   }
-  console.log(JSON.stringify({newProviders,removedProviders,newModels,modelsNeedingCapabilities:needsCaps}));
+  safeLog({newProviders,removedProviders,newModels,modelsNeedingCapabilities:needsCaps});
 }
 
 function computeHeadroom(modelId){
   const limits=readJson(LIMITS);const state=readJson(STATE);
-  const si=modelId.indexOf('/');if(si===-1){console.log(JSON.stringify({error:'need provider/model format'}));return;}
+  const si=modelId.indexOf('/');if(si===-1){safeLog({error:'need provider/model format'});return;}
   const pid=modelId.slice(0,si),mk=modelId.slice(si+1);const pc=limits?.providers?.[pid];
-  if(!pc){console.log(JSON.stringify({headroom:Infinity,unlimited:true,reason:'no_limit_config'}));return;}
+  if(!pc){safeLog({headroom:Infinity,unlimited:true,reason:'no_limit_config'});return;}
   const mc=pc.models?.[mk]??{};
-  if(mc.override==='unlimited'){console.log(JSON.stringify({headroom:Infinity,unlimited:true,reason:'model_unlimited'}));return;}
+  if(mc.override==='unlimited'){safeLog({headroom:Infinity,unlimited:true,reason:'model_unlimited'});return;}
   let bucket=null,bk=null;
   if(mc.override==='own'&&mc.bucket){bucket=mc.bucket;bk=`${pid}:${mk}`;}
-  else if(pc.topology==='unlimited'||pc.bucket?.unlimited){console.log(JSON.stringify({headroom:Infinity,unlimited:true,reason:'provider_unlimited'}));return;}
+  else if(pc.topology==='unlimited'||pc.bucket?.unlimited){safeLog({headroom:Infinity,unlimited:true,reason:'provider_unlimited'});return;}
   else if(pc.bucket){bucket=pc.bucket;bk=pid;}
-  if(!bucket||!bk){console.log(JSON.stringify({headroom:Infinity,unlimited:true,reason:'no_bucket'}));return;}
+  if(!bucket||!bk){safeLog({headroom:Infinity,unlimited:true,reason:'no_bucket'});return;}
   if(bucket.dynamicQuery){
     const c=state.limitsCache?.[pid];const age=c?Date.now()-new Date(c.fetchedAt).getTime():Infinity;
-    if(c&&age<60000){console.log(JSON.stringify({headroom:c.remaining!==null?c.remaining:Infinity,used:c.used,limit:c.limit,fromCache:true,cacheAgeMs:age}));return;}
-    console.log(JSON.stringify({headroom:null,needsRefresh:true,providerId:pid,cacheAgeMs:age}));return;
+    if(c&&age<60000){safeLog({headroom:c.remaining!==null?c.remaining:Infinity,used:c.used,limit:c.limit,fromCache:true,cacheAgeMs:age});return;}
+    safeLog({headroom:null,needsRefresh:true,providerId:pid,cacheAgeMs:age});return;
   }
   const ws=windowToSeconds(bucket.window),cutMs=Date.now()-ws*1000;
   const reqs=state.windowCounters?.[bk]?.requests??[];
   const used=reqs.filter(ts=>new Date(ts).getTime()>cutMs).length;
   const h=bucket.limit-used,ratio=bucket.limit>0?Math.round(h/bucket.limit*100)/100:1;
-  console.log(JSON.stringify({headroom:h,used,limit:bucket.limit,ratio,windowSecs:ws,bucketKey:bk}));
+  safeLog({headroom:h,used,limit:bucket.limit,ratio,windowSecs:ws,bucketKey:bk});
 }
 
 function updateState(patchJson){
@@ -227,12 +261,12 @@ function updateState(patchJson){
   if(patch.recordFailure){const{model,reason}=patch.recordFailure;const e=s.recentFailures[model]??{count:0};e.count+=1;e.lastAt=now();e.reason=reason;s.recentFailures[model]=e;}
   if(patch.clearFailures)delete s.recentFailures[patch.clearFailures];
   if(patch.pruneStale){const ns=now();for(const[sid,ss]of Object.entries(s.activeSessions))if(ss.timeoutAt&&ss.timeoutAt<ns)delete s.activeSessions[sid];}
-  s.lastUpdated=now();writeJson(STATE,s);console.log(JSON.stringify({ok:true}));
+  s.lastUpdated=now();writeJson(STATE,s);safeLog({ok:true});
 }
 
 function pruneWindows(){
   const s=readJson(STATE);const l=readJson(LIMITS);
-  if(!s.windowCounters){console.log(JSON.stringify({ok:true,pruned:0}));return;}
+  if(!s.windowCounters){safeLog({ok:true,pruned:0});return;}
   let pruned=0;
   for(const[bk,c]of Object.entries(s.windowCounters)){
     const ci=bk.indexOf(':');const pid=ci!==-1?bk.slice(0,ci):bk;const mk=ci!==-1?bk.slice(ci+1):null;
@@ -241,12 +275,12 @@ function pruneWindows(){
     const cutoff=new Date(Date.now()-ws*1000).toISOString();
     const before=c.requests.length;c.requests=c.requests.filter(ts=>ts>cutoff);pruned+=before-c.requests.length;
   }
-  writeJson(STATE,s);console.log(JSON.stringify({ok:true,pruned}));
+  writeJson(STATE,s);safeLog({ok:true,pruned});
 }
 
 function modelInfo(modelId){
   const name=modelId.split('/').pop(),provider=modelId.split('/')[0];
-  console.log(JSON.stringify({
+  safeLog({
     modelId,searchQuery:`"${name}" AI model capabilities use cases 2025`,
     alternateQuery:`${provider} ${name} benchmark speed context window review`,
     extractFields:['Best use cases','Poor use cases','Speed/throughput','Context window','Reasoning model?','Multimodal support?','Tool use support?'],
@@ -259,7 +293,7 @@ async function probeAllProviders(){
   const all=[...new Set([...Object.keys(cfg?.models?.providers??{}),...Object.keys(probes.providers??{})])];
   const results={};
   for(const pid of all){try{results[pid]=await probeProvider(pid,false);}catch(e){results[pid]={autoDetected:false,providerId:pid,reason:e.message};}}
-  console.log(JSON.stringify(results));
+  safeLog(results);
 }
 
 const args=process.argv.slice(2);const cmd=args[0];
@@ -270,7 +304,7 @@ const args=process.argv.slice(2);const cmd=args[0];
       case'--check-config-hash':await checkConfigHash();break;
       case'--diff-config':await diffConfig();break;
       case'--probe-all-providers':await probeAllProviders();break;
-      case'--probe-provider':{if(!args[1]){log('need provider id');process.exit(1);}console.log(JSON.stringify(await probeProvider(args[1],args.includes('--live'))));break;}
+      case'--probe-provider':{if(!args[1]){log('need provider id');process.exit(1);}safeLog(await probeProvider(args[1],args.includes('--live')));break;}
       case'--compute-headroom':{if(!args[1]){log('need provider/model-id');process.exit(1);}computeHeadroom(args[1]);break;}
       case'--update-state':{if(!args[1]){log('need JSON patch');process.exit(1);}updateState(args[1]);break;}
       case'--prune-windows':pruneWindows();break;

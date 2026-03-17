@@ -6,7 +6,7 @@
 
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-compatible-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEycy40OCA5LjUyIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=)](https://openclaw.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](CHANGELOG.md)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
 
 </div>
@@ -118,7 +118,17 @@ unzip baton.skill -d <workspace>/skills/
 }
 ```
 
-**4. Start a conversation.** On first run, Baton walks you through onboarding for each configured provider and model. You only do this once — answers are saved and survive restarts.
+**4. Add BOOT.md to your workspace**
+
+Copy `BOOT.md` from the skill into your OpenClaw workspace so the startup routine runs automatically on every gateway restart:
+```bash
+cp path/to/baton-github/BOOT.md ~/.openclaw/workspace/BOOT.md
+```
+Edit the `<baton-skill-path>` placeholder in the file to match where you installed the skill, e.g. `~/.openclaw/skills/baton`.
+
+If you already have a `BOOT.md`, append the Baton section to it rather than replacing it.
+
+**5. Start a conversation.** On first run, Baton discloses what it accesses and asks for your confirmation before running any scripts. After confirming, it walks you through onboarding for each configured provider and model.
 
 ## Onboarding
 
@@ -245,9 +255,27 @@ Add an entry to `scripts/provider-probes.json` for providers that expose a rate-
 
 For providers without a limits API, just skip the entry — Baton asks the user during onboarding.
 
-## Known Caveats
+## Security & Permissions
 
-### OpenClaw bugs Baton works around
+Baton requires elevated access to function. Before installing, understand what it does:
+
+| What | Why | Safeguard |
+|---|---|---|
+| Reads `~/.openclaw/openclaw.json` | Discovers configured providers and models | Read-only; file is not modified |
+| Reads `~/.openclaw/agents/*/agent/models.json` | Discovers per-agent model scopes | Read-only; file is not modified |
+| Resolves API keys from env vars and config | Queries provider rate-limit APIs to check headroom | Keys used only for outbound HTTP; never written to stdout, logs, or state files |
+| Runs Node.js scripts on startup | `probe-limits.js` and `task-manager.js` handle state management | Scripts are open source; review before installing |
+| Spawns subagents | Core orchestration function | Uses OpenClaw's native `sessions_spawn`; respects `maxChildrenPerAgent` |
+
+**On first run, Baton discloses these access requirements and asks for your confirmation before executing any scripts.** Consent is saved to `~/.openclaw/baton/consent.txt` so you are only asked once.
+
+**API key handling:** API keys are resolved in-memory solely to make outbound HTTP requests to provider rate-limit APIs (e.g. checking remaining quota). The `sanitiseOutput()` function in `probe-limits.js` strips any key-like fields before writing to stdout. Keys are never stored in Baton's state files.
+
+The `metadata.openclaw.requires.config` field declares `agents.defaults.subagents.maxSpawnDepth` as a required config entry, so OpenClaw can surface a clear error if Baton is loaded without the necessary orchestrator configuration rather than failing silently.
+
+
+
+## Known Caveats
 
 | Issue | Baton's workaround |
 |-------|-------------------|

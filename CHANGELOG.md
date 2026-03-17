@@ -4,7 +4,25 @@ All notable changes to Baton will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] — 2026-03-17
+## [1.0.2] — 2026-03-17
+
+### Added
+- BOOT.md workspace file: Baton startup routine now runs automatically on gateway restart via OpenClaw's BOOT.md hook, rather than relying on the first user message to trigger it
+- SKILL.md startup section simplified — BOOT.md is now the canonical startup mechanism
+- README installation step added for copying BOOT.md to the workspace
+
+
+
+### Security
+- Added first-run consent gate: Baton discloses config/env access and asks for user confirmation before running any startup scripts; consent saved to consent.txt
+- Added `metadata.openclaw.requires.config` declaration so OpenClaw surfaces a clear error if required orchestrator config is missing rather than failing silently
+- Added `metadata.openclaw.permissions` field documenting read:config, read:agents, exec:scripts, read:env access
+- Added `sanitiseOutput()` to probe-limits.js: all stdout JSON is sanitised to redact any API key or secret fields before output
+- API keys are now never written to stdout, stderr logs, or any Baton state file; they are resolved in-memory only for outbound HTTP requests to provider rate-limit APIs
+- Added security disclosure header to probe-limits.js documenting data access behaviour
+- Added Security & Permissions section to README with per-permission disclosure table
+
+
 
 ### Added
 - Planner-first architecture: complex tasks decomposed by a reasoning-capable Planner subagent; primary agent executes mechanically from the returned plan
