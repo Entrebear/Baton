@@ -4,6 +4,13 @@ All notable changes to Baton will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] — 2026-03-17
+
+### Fixed
+- Spawn instructions now explicitly state: omit agentId to spawn under the calling agent (OpenClaw default); only add agentId when subtask.targetAgent is explicitly set
+- Planner rules in orchestration.md updated: targetAgent defaults to null (calling agent) and must never be set unless a specialist agent was explicitly nominated
+- Spawn Rules section in orchestration.md replaces Session Cleanup section with clear two-case examples (default spawn vs targetAgent spawn)
+
 ## [1.0.3] — 2026-03-17
 
 ### Fixed

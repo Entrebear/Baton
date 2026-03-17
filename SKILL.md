@@ -57,9 +57,10 @@ See references/orchestration.md for Planner prompt.
 
 Spawn each ready subtask:
 ```
-sessions_spawn(task, model, agentId?, runTimeoutSeconds, cleanup:"delete")
+sessions_spawn(task, model, runTimeoutSeconds, cleanup:"delete")  // omit agentId — spawns under THIS agent by default
 ```
 Timeouts(s): lookup/transform=45, code=120, complex-code=300, reasoning=180, agentic=600, agentic-long=1800.
+Only add agentId to the spawn call when subtask.targetAgent is explicitly set — never otherwise. Default (no agentId) always spawns under the calling agent.
 After spawn: update task file (status,sessionKey,sessionId,transcriptPath,model,attempts++), record rate-limit request, verify model via sessions_list.
 Rounds parallel within dependency level. Priority: urgent>normal>background, auto-boost after 10min.
 

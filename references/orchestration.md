@@ -48,6 +48,7 @@ A JSON object matching this schema exactly:
 ## Rules
 - Each subtask must be atomic: one model, one output, completable in one subagent run.
 - Assign the best model from available models for each subtask's type and token requirements.
+- targetAgent: always null unless the user or system has explicitly nominated a specialist agent for this subtask. null means spawn under the calling agent.
 - contextStrategy: verbatim if upstream output ≤20% of target model context, summarise if 21-60%, compress if >60%.
 - parallelGroups: list subtask IDs that can run simultaneously in each round.
 - definitionOfDone must be verifiable by reading the output — no subjective criteria.
@@ -179,9 +180,9 @@ Otherwise spawn a Planner. When in doubt, spawn a Planner — it costs one extra
 Simple validation (primary agent does directly): non-empty, correct format, obviously on-topic.
 Complex validation (spawn Validator): code correctness, logic soundness, mathematical accuracy, security, factual claims requiring verification.
 
-## Session Cleanup
+## Spawn Rules
 
-Every `sessions_spawn` call must include `cleanup: "delete"`. This causes OpenClaw to archive and clean up the subagent session immediately after it announces completion, rather than waiting for the default 60-minute auto-archive. This keeps the session list clean and frees resources.
+**Default: always spawn under the calling agent.** Do not include `agentId` in `sessions_spawn` unless the subtask has `targetAgent` explicitly set. Omitting `agentId` is how OpenClaw spawns under the calling agent — it is not a gap to fill.
 
 ```
 sessions_spawn(
@@ -189,8 +190,22 @@ sessions_spawn(
   model: "...",
   runTimeoutSeconds: N,
   cleanup: "delete"
+  // agentId: only add this line when subtask.targetAgent is set
 )
 ```
+
+When `targetAgent` is set:
+```
+sessions_spawn(
+  task: "...",
+  model: "...",
+  agentId: "<targetAgent>",
+  runTimeoutSeconds: N,
+  cleanup: "delete"
+)
+```
+
+`cleanup: "delete"` must be included on every spawn — causes the session to be archived immediately after announcing rather than waiting for the default 60-minute auto-archive.
 
 Apply to all subagent types: Planner, workers, Validator, Corrector, Synthesiser.
 
