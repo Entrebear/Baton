@@ -1,0 +1,16 @@
+{
+  "name": "baton",
+  "version": "1.0.0",
+  "releaseDate": "2026-03-17",
+  "author": "Entrebear",
+  "homepage": "https://entrebear.com",
+  "repository": "https://github.com/entrebear/baton",
+  "openclaw": {
+    "minVersion": "2026.1.0",
+    "requiredConfig": {
+      "maxSpawnDepth": 2,
+      "maxChildrenPerAgent": 5
+    }
+  },
+  "nodeRequirement": ">=18.0.0"
+}

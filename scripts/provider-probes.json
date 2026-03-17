@@ -1,0 +1,32 @@
+{
+  "_comment": "Data-driven provider probe configs. Add providers here — no code changes needed. Zero hardcoded limit values. All limit numbers come from user input or live API responses, stored in limit-config.json.",
+  "localUrlPatterns": ["localhost", "127.0.0.1", "0.0.0.0", "::1"],
+  "providers": {
+    "anthropic": {
+      "displayName": "Anthropic",
+      "limitQueryMethod": "openclaw_status",
+      "openclaw_status_cmd": "openclaw models status --json",
+      "knownTopology": "providerBucket",
+      "notes": "OpenClaw tracks Anthropic usage natively. Rolling window limits (not fixed daily resets)."
+    },
+    "openai": {
+      "displayName": "OpenAI",
+      "limitQueryMethod": "none",
+      "knownTopology": "providerBucket",
+      "notes": "OpenAI does not expose rate limits via API. User must specify during onboarding. Typically rolling 5-hour and per-week windows."
+    },
+    "ollama": {
+      "displayName": "Ollama",
+      "limitQueryMethod": "local_unlimited",
+      "knownTopology": "unlimited",
+      "notes": "Local inference. Localhost = unlimited. External host also treated as unlimited unless user specifies otherwise."
+    }
+  },
+  "limitQueryMethods": {
+    "http_get": { "description": "HTTP GET with API key. Extract fields from JSON response via dot-paths.", "requiredFields": ["url","authHeader","apiKeyEnvHints","responsePaths"] },
+    "openclaw_status": { "description": "Run `openclaw models status --json` to get usage from OpenClaw's built-in tracking.", "requiredFields": ["openclaw_status_cmd"] },
+    "local_unlimited": { "description": "Local process. No rate limiting applies." },
+    "none": { "description": "No programmatic query. Must be entered by user during onboarding." }
+  },
+  "schemaVersion": 2
+}
