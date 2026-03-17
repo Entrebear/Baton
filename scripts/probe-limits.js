@@ -133,67 +133,164 @@ function updateLimitsCache(pid,lu){
  * Sources models from both instance openclaw.json AND agent-specific models.json.
  * Per-agent models are tagged with agentId so selection can enforce agent scope.
  */
-async function buildRegistry(){
-  ensureDir();log('Building model registry...');
-  let raw;try{raw=execSync('openclaw models list --json 2>/dev/null',{encoding:'utf8',timeout:30000});}
-  catch(e){log(`ERROR: openclaw models list failed — ${e.message}`);process.exit(1);}
-  let entries;try{const p=JSON.parse(raw);entries=Array.isArray(p)?p:(p.models??Object.values(p));}
-  catch{log('ERROR: parse failed');process.exit(1);}
-  const existing=readJson(REGISTRY,{models:{}});
-  const models={};
-  // Instance-wide models from openclaw models list (sourced from openclaw.json + any agent models.json that openclaw exposes)
-  for(const m of entries){
-    const id=m.id??[m.provider,m.model].filter(Boolean).join('/');if(!id)continue;
-    const prev=existing.models?.[id]??{};
-    const keepCap=prev.capableSource==='user'||prev.capableSource==='web';
-    const keepSpd=prev.speedSource==='user'||prev.speedSource==='measured';
-    models[id]={
-      alias:m.alias??m.name??id.split('/').pop(),
-      contextWindow:m.contextWindow??m.context_window??prev.contextWindow??null,
-      capable:keepCap?prev.capable:null,capableSource:keepCap?prev.capableSource:null,capableNotes:prev.capableNotes??null,
-      speed:keepSpd?prev.speed:null,speedSource:keepSpd?prev.speedSource:null,
-      costPerMTokenInput:m.cost?.input??prev.costPerMTokenInput??null,
-      costPerMTokenOutput:m.cost?.output??prev.costPerMTokenOutput??null,
-      knownUnlimited:prev.knownUnlimited??false,
-      authOk:!String(m.auth??'').toLowerCase().includes('unknown'),
-      policy:prev.policy??null,
-      agentScope:m.agentId??null   // non-null = only available to this specific agent
+async function buildRegistry() {
+  ensureDir();
+  log('Building model registry...');
+
+  const cfg = readJson(CONFIG_FILE);
+  const existing = readJson(REGISTRY, { models: {} });
+  const models = {};
+
+  // Helper: merge a model entry preserving user/web-sourced capability and speed data
+  function mergeModel(id, incoming) {
+    const prev = existing.models?.[id] ?? {};
+    const keepCap = prev.capableSource === 'user' || prev.capableSource === 'web';
+    const keepSpd = prev.speedSource === 'user' || prev.speedSource === 'measured';
+    models[id] = {
+      alias:               incoming.alias ?? prev.alias ?? id.split('/').pop(),
+      contextWindow:       incoming.contextWindow ?? prev.contextWindow ?? null,
+      capable:             keepCap ? prev.capable : null,
+      capableSource:       keepCap ? prev.capableSource : null,
+      capableNotes:        prev.capableNotes ?? null,
+      speed:               keepSpd ? prev.speed : null,
+      speedSource:         keepSpd ? prev.speedSource : null,
+      costPerMTokenInput:  incoming.costPerMTokenInput ?? prev.costPerMTokenInput ?? null,
+      costPerMTokenOutput: incoming.costPerMTokenOutput ?? prev.costPerMTokenOutput ?? null,
+      knownUnlimited:      incoming.knownUnlimited ?? prev.knownUnlimited ?? false,
+      authOk:              incoming.authOk ?? prev.authOk ?? true,
+      policy:              prev.policy ?? null,
+      agentScope:          incoming.agentScope ?? null,
+      source:              incoming.source ?? prev.source ?? 'unknown'
     };
   }
-  // Also scan agent-specific models.json files for any models not surfaced by openclaw models list
-  try{
-    const agentsDir=path.join(HOME,'.openclaw','agents');
-    if(fs.existsSync(agentsDir)){
-      for(const agentId of fs.readdirSync(agentsDir)){
-        const agentModelsPath=path.join(agentsDir,agentId,'agent','models.json');
-        if(!fs.existsSync(agentModelsPath))continue;
-        const agentModels=readJson(agentModelsPath,{});
-        const providers=agentModels.providers??{};
-        for(const[providerId,pc]of Object.entries(providers)){
-          for(const m of(pc.models??[])){
-            const id=`${providerId}/${m.id}`;
-            if(models[id])continue; // already in instance-wide registry
-            const prev=existing.models?.[id]??{};
-            const keepCap=prev.capableSource==='user'||prev.capableSource==='web';
-            const keepSpd=prev.speedSource==='user'||prev.speedSource==='measured';
-            models[id]={
-              alias:m.name??m.id,contextWindow:m.contextWindow??prev.contextWindow??null,
-              capable:keepCap?prev.capable:null,capableSource:keepCap?prev.capableSource:null,capableNotes:prev.capableNotes??null,
-              speed:keepSpd?prev.speed:null,speedSource:keepSpd?prev.speedSource:null,
-              costPerMTokenInput:m.cost?.input??prev.costPerMTokenInput??null,
-              costPerMTokenOutput:m.cost?.output??prev.costPerMTokenOutput??null,
-              knownUnlimited:prev.knownUnlimited??false,authOk:true,policy:prev.policy??null,
-              agentScope:agentId  // exclusively this agent's model
-            };
+
+  // ── Source 1: models.providers — custom providers defined in openclaw.json ─
+  // User-defined providers (Ollama, vLLM, custom APIs etc.) with full model metadata.
+  const customProviders = cfg?.models?.providers ?? {};
+  for (const [providerId, providerConf] of Object.entries(customProviders)) {
+    for (const m of (providerConf.models ?? [])) {
+      const id = (m.id && m.id.includes('/')) ? m.id : `${providerId}/${m.id}`;
+      mergeModel(id, {
+        alias:               m.name ?? m.id,
+        contextWindow:       m.contextWindow ?? m.context_window ?? null,
+        costPerMTokenInput:  m.cost?.input ?? null,
+        costPerMTokenOutput: m.cost?.output ?? null,
+        knownUnlimited:      (m.cost?.input === 0 && m.cost?.output === 0)
+                             || isLocalProvider(providerConf)
+                             || isExternalSelfHosted(providerConf),
+        authOk:              true,
+        source:              'models.providers'
+      });
+    }
+  }
+
+  // ── Source 2: agents.defaults.models — OpenClaw auth system allowlist ──────
+  // Models in provider/model format backed by auth.profiles (OAuth, API keys).
+  const agentDefaultModels = cfg?.agents?.defaults?.models ?? {};
+  for (const [modelRef, modelMeta] of Object.entries(agentDefaultModels)) {
+    if (!models[modelRef]) {
+      mergeModel(modelRef, {
+        alias:  modelMeta?.alias ?? modelRef.split('/').pop(),
+        authOk: true,
+        source: 'agents.defaults.models'
+      });
+    } else {
+      if (modelMeta?.alias) models[modelRef].alias = modelMeta.alias;
+      models[modelRef].authOk = true;
+      models[modelRef].source += '+agents.defaults.models';
+    }
+  }
+
+  // Per-agent model allowlists in agents.list[]
+  for (const agentConf of (cfg?.agents?.list ?? [])) {
+    const agentId = agentConf.id;
+    const agentModels = agentConf.models ?? agentConf.model?.models ?? {};
+    for (const [modelRef, modelMeta] of Object.entries(agentModels)) {
+      if (!models[modelRef]) {
+        mergeModel(modelRef, {
+          alias:      modelMeta?.alias ?? modelRef.split('/').pop(),
+          authOk:     true,
+          agentScope: agentId,
+          source:     `agents.list[${agentId}]`
+        });
+      } else if (!models[modelRef].agentScope && modelMeta?.alias) {
+        models[modelRef].alias = modelMeta.alias;
+      }
+    }
+  }
+
+  // ── Source 3: openclaw models list --json — authoritative resolved catalog ─
+  // Fills gaps (auth status, contextWindow for built-in providers) and surfaces
+  // any additional models OpenClaw knows about. Non-fatal if this fails.
+  try {
+    const raw = execSync('openclaw models list --json 2>/dev/null', { encoding: 'utf8', timeout: 30000 });
+    const parsed = JSON.parse(raw);
+    const entries = Array.isArray(parsed) ? parsed : (parsed.models ?? Object.values(parsed));
+    for (const m of entries) {
+      const id = m.id ?? [m.provider, m.model].filter(Boolean).join('/');
+      if (!id) continue;
+      const authOk = !String(m.auth ?? '').toLowerCase().includes('unknown');
+      if (models[id]) {
+        // Fill gaps with authoritative openclaw data; auth status always overrides
+        if (!models[id].contextWindow) models[id].contextWindow = m.contextWindow ?? m.context_window ?? null;
+        if (models[id].costPerMTokenInput == null) models[id].costPerMTokenInput = m.cost?.input ?? null;
+        if (models[id].costPerMTokenOutput == null) models[id].costPerMTokenOutput = m.cost?.output ?? null;
+        models[id].authOk = authOk;
+        models[id].source += '+openclaw-list';
+      } else {
+        mergeModel(id, {
+          alias:               m.alias ?? m.name ?? id.split('/').pop(),
+          contextWindow:       m.contextWindow ?? m.context_window ?? null,
+          costPerMTokenInput:  m.cost?.input ?? null,
+          costPerMTokenOutput: m.cost?.output ?? null,
+          authOk,
+          agentScope:          m.agentId ?? null,
+          source:              'openclaw-list'
+        });
+      }
+    }
+  } catch(e) {
+    log(`WARNING: openclaw models list failed (${e.message}); registry built from config only`);
+  }
+
+  // ── Source 4: per-agent models.json files ──────────────────────────────────
+  // Agent-scoped models not surfaced by any of the above sources.
+  try {
+    const agentsDir = path.join(HOME, '.openclaw', 'agents');
+    if (fs.existsSync(agentsDir)) {
+      for (const agentId of fs.readdirSync(agentsDir)) {
+        const agentModelsPath = path.join(agentsDir, agentId, 'agent', 'models.json');
+        if (!fs.existsSync(agentModelsPath)) continue;
+        const agentModels = readJson(agentModelsPath, {});
+        for (const [providerId, pc] of Object.entries(agentModels.providers ?? {})) {
+          for (const m of (pc.models ?? [])) {
+            const id = (m.id && m.id.includes('/')) ? m.id : `${providerId}/${m.id}`;
+            if (models[id]) continue;
+            mergeModel(id, {
+              alias:               m.name ?? m.id,
+              contextWindow:       m.contextWindow ?? null,
+              costPerMTokenInput:  m.cost?.input ?? null,
+              costPerMTokenOutput: m.cost?.output ?? null,
+              knownUnlimited:      m.cost?.input === 0 && m.cost?.output === 0,
+              authOk:              true,
+              agentScope:          agentId,
+              source:              `agent-models.json[${agentId}]`
+            });
           }
         }
       }
     }
-  }catch(e){log(`WARNING: could not scan agent models.json files: ${e.message}`);}
-  writeJson(REGISTRY,{builtAt:now(),configHash:hashFile(CONFIG_FILE),models});
-  log(`Registry: ${Object.keys(models).length} models (${Object.values(models).filter(m=>m.agentScope).length} agent-scoped)`);
-  safeLog({ok:true,modelCount:Object.keys(models).length,models:Object.keys(models)});
+  } catch(e) {
+    log(`WARNING: could not scan agent models.json files: ${e.message}`);
+  }
+
+  const agentScoped = Object.values(models).filter(m => m.agentScope).length;
+  const sources = [...new Set(Object.values(models).flatMap(m => (m.source ?? '').split('+')))].filter(Boolean);
+  writeJson(REGISTRY, { builtAt: now(), configHash: hashFile(CONFIG_FILE), models });
+  log(`Registry: ${Object.keys(models).length} models (${agentScoped} agent-scoped), sources: ${sources.join(', ')}`);
+  safeLog({ ok: true, modelCount: Object.keys(models).length, models: Object.keys(models) });
 }
+
 
 async function checkConfigHash(){
   ensureDir();const cur=hashFile(CONFIG_FILE);

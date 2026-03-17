@@ -4,7 +4,17 @@ All notable changes to Baton will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.2] — 2026-03-17
+## [1.0.3] — 2026-03-17
+
+### Fixed
+- Registry builder now correctly reads both model sources from openclaw.json:
+  - `models.providers` — custom providers with full model metadata (baseUrl, contextWindow, cost)
+  - `agents.defaults.models` and `agents.list[].models` — models using OpenClaw's auth system (OAuth profiles, API key rotation)
+- `openclaw models list --json` is now non-fatal and used only to fill gaps; registry builds from config directly first
+- Added `source` field to each registry entry tracking which config section it came from
+- Fixed model ID construction for custom providers whose model IDs already contain a provider prefix
+
+
 
 ### Added
 - BOOT.md workspace file: Baton startup routine now runs automatically on gateway restart via OpenClaw's BOOT.md hook, rather than relying on the first user message to trigger it

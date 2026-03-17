@@ -22,9 +22,12 @@ Startup is handled by `BOOT.md` in your workspace. If startup has not run this s
 | else | Decompose and Execute |
 
 ## Model Registry
-1. ~/.openclaw/agents/<agentId>/agent/models.json — agent-scoped only
-2. ~/.openclaw/openclaw.json models.providers — instance-wide
-3. ~/.openclaw/baton/model-registry-cache.json — metadata
+1. openclaw.json `models.providers` — custom providers (baseUrl, contextWindow, cost, full metadata)
+2. openclaw.json `agents.defaults.models` / `agents.list[].models` — auth-system models (OAuth, API key profiles)
+3. `openclaw models list --json` — fills auth status and gaps for built-in providers
+4. agents/<id>/agent/models.json — agent-scoped overrides
+
+Sources 1 and 2 read directly from config. Source 3 is authoritative for auth status.
 Spawning to targetAgent: only use models available to that agent.
 
 ## Model Selection
