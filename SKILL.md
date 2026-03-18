@@ -9,7 +9,7 @@ You handle directly: model selection, onboarding, simple planning (linear/single
 Delegate to subagent: complex planning (multi-domain, ambiguous deps), synthesis, complex validation (code/logic/maths/security), complex correction prompts.
 
 ## Startup
-Startup is handled by `BOOT.md` in your workspace. If startup has not run this session (gateway-alive.txt absent or >90s old), run it now before handling any request.
+The hard rule in `AGENTS.md` and startup routine in `BOOT.md` are installed by `scripts/install.sh`. If gateway-alive.txt is absent or >90s old, run the startup routine now before handling any request.
 
 ## Routing
 | Intent | Action |

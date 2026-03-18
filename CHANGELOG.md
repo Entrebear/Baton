@@ -4,6 +4,27 @@ All notable changes to Baton will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] — 2026-03-18
+
+### Added
+- `install.sh` now schedules a one-shot cron job (`cron.schedule` with `deleteAfterRun: true`) immediately after install, so the BOOT.md startup routine fires as soon as the gateway restarts — no manual first message needed
+- `install.sh` now calls `openclaw restart` automatically at the end of install, so BOOT.md and AGENTS.md changes take effect immediately
+- Both steps fail gracefully if the gateway is not running (BOOT.md handles first run on next manual restart)
+
+## [1.0.5] — 2026-03-18
+
+### Added
+- `scripts/install.sh` — automated install script that handles all post-install steps in one command:
+  - Prepends a hard "Baton Orchestrator" rule to `AGENTS.md` (injected by OpenClaw into every turn, preventing the agent from doing work itself)
+  - Installs `BOOT.md` into the workspace with the correct skill path substituted, or appends to an existing BOOT.md
+  - Creates Baton state directories
+  - Builds the initial model registry
+- AGENTS.md hard rule enforcement documented: OpenClaw injects AGENTS.md into context on every turn, making it the correct mechanism for hard behavioral constraints (not openclaw.json, which has no user-facing systemPrompt field)
+- README installation section rewritten to lead with `install.sh` as the primary method
+
+### Fixed
+- Manual BOOT.md step replaced — install script handles path substitution automatically
+
 ## [1.0.4] — 2026-03-17
 
 ### Fixed

@@ -6,7 +6,7 @@
 
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-compatible-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEycy40OCA5LjUyIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=)](https://openclaw.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)](CHANGELOG.md)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
 
 </div>
@@ -85,13 +85,33 @@ The conductor never executes work. Subagents do — each spawned with the model 
 **1. Install the skill**
 ```bash
 # Instance-wide
-unzip baton.skill -d ~/.openclaw/skills/
+unzip baton.skill -d ~/.openclaw/skills/baton
 
 # Or workspace-specific
-unzip baton.skill -d <workspace>/skills/
+unzip baton.skill -d <workspace>/skills/baton
 ```
 
-**2. Configure openclaw.json**
+**2. Run the install script**
+```bash
+bash ~/.openclaw/skills/baton/scripts/install.sh
+```
+
+This script handles everything automatically:
+- Writes the Baton hard rule to the **top** of your `AGENTS.md` — the rule that prevents the agent from doing work itself instead of spawning subagents. This is injected into the context on every turn by OpenClaw.
+- Installs `BOOT.md` into your workspace (or appends to an existing one) with the correct skill path already substituted.
+- Creates the Baton state directories.
+- Builds the initial model registry from your `openclaw.json`.
+- Schedules a **one-shot cron job** that fires the Baton startup routine immediately after the gateway restarts.
+- Restarts the gateway automatically so all changes take effect straight away.
+
+If you have a custom workspace path set via `agents.defaults.workspace`, pass it as an argument:
+```bash
+bash ~/.openclaw/skills/baton/scripts/install.sh
+# Uses OPENCLAW_WORKSPACE env var or defaults to ~/.openclaw/workspace
+OPENCLAW_WORKSPACE=~/my-workspace bash ~/.openclaw/skills/baton/scripts/install.sh
+```
+
+**3. Configure openclaw.json**
 ```json
 {
   "agents": {
@@ -105,7 +125,7 @@ unzip baton.skill -d <workspace>/skills/
 }
 ```
 
-**3. For specialist agents** (optional)
+**4. For specialist agents** (optional)
 ```json
 {
   "agents": {
@@ -118,17 +138,7 @@ unzip baton.skill -d <workspace>/skills/
 }
 ```
 
-**4. Add BOOT.md to your workspace**
-
-Copy `BOOT.md` from the skill into your OpenClaw workspace so the startup routine runs automatically on every gateway restart:
-```bash
-cp path/to/baton-github/BOOT.md ~/.openclaw/workspace/BOOT.md
-```
-Edit the `<baton-skill-path>` placeholder in the file to match where you installed the skill, e.g. `~/.openclaw/skills/baton`.
-
-If you already have a `BOOT.md`, append the Baton section to it rather than replacing it.
-
-**5. Start a conversation.** On first run, Baton discloses what it accesses and asks for your confirmation before running any scripts. After confirming, it walks you through onboarding for each configured provider and model.
+**6. Start a conversation.** On first run, Baton discloses what it accesses and asks for your confirmation before running any scripts. After confirming, it walks you through onboarding for each configured provider and model.
 
 ## Onboarding
 
