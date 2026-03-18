@@ -1,0 +1,9 @@
+{
+  "name": "baton",
+  "version": "1.0.7",
+  "type": "module",
+  "description": "Baton — AI agent orchestrator and model router for OpenClaw",
+  "engines": {
+    "node": ">=18"
+  }
+}

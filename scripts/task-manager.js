@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * task-manager.js  —  Baton skill helper
+ * task-manager.js  --  Baton skill helper
  *
  * Commands:
  *   --list-incomplete
  *   --status --agent <agentId>        (tasks for this agent only)
- *   --all-status                       (all agents, elevated only — checked by caller)
+ *   --all-status                       (all agents, elevated only -- checked by caller)
  *   --create <json>
  *   --update-task <taskId> <patch>
  *   --update-subtask <taskId> <subtaskId> <patch>
@@ -35,7 +35,7 @@ const CHECKPOINTS_DIR = path.join(BATON_DIR, 'checkpoints');
 const OUTPUTS_DIR   = path.join(HOME, '.openclaw', 'workspace', 'baton-outputs');
 const AGENTS_DIR    = path.join(HOME, '.openclaw', 'agents');
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
+// --- Utilities ----------------------------------------------------------------
 
 function ensureDirs() {
   [BATON_DIR, TASKS_DIR, ARCHIVE_DIR, TEMPLATES_DIR, CHECKPOINTS_DIR, OUTPUTS_DIR]
@@ -67,7 +67,7 @@ function slugify(str) {
   return (str || 'task').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/-$/, '');
 }
 
-// ─── Task file helpers ────────────────────────────────────────────────────────
+// --- Task file helpers --------------------------------------------------------
 
 const PRIORITY_ORDER = { urgent: 0, normal: 1, background: 2 };
 
@@ -129,7 +129,7 @@ function loadAllActiveTasks() {
     .filter(t => t && t.status !== 'done');
 }
 
-// ─── Commands ─────────────────────────────────────────────────────────────────
+// --- Commands -----------------------------------------------------------------
 
 function listIncomplete() {
   const tasks = loadAllActiveTasks();
@@ -183,7 +183,7 @@ function getAgentStatus(agentId) {
  * --all-status
  * Instance-wide view, grouped by orchestratorAgent.
  * MUST only be called after the conductor has verified elevated privileges.
- * The check is done in the skill (SKILL.md § Status Commands) before invoking this.
+ * The check is done in the skill (SKILL.md SS Status Commands) before invoking this.
  */
 function getAllStatus() {
   const tasks = loadAllActiveTasks().map(taskSummary);
@@ -343,7 +343,7 @@ function archiveTask(taskId) {
     ensureDirs();
     fs.writeFileSync(outputPath, [
       `# ${task.goal}`,
-      `*Task ID: ${task.taskId} — Completed: ${task.archivedAt}*`,
+      `*Task ID: ${task.taskId} -- Completed: ${task.archivedAt}*`,
       `*Agent: ${task.orchestratorAgent ?? 'unknown'}*`,
       ``,
       task.finalSynthesis
@@ -581,7 +581,7 @@ function getTemplate(nameOrId) {
   console.log(JSON.stringify({ found: false, nameOrId }));
 }
 
-// ─── CLI dispatch ─────────────────────────────────────────────────────────────
+// --- CLI dispatch -------------------------------------------------------------
 
 const args = process.argv.slice(2);
 const cmd  = args[0];

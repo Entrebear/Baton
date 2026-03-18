@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * probe-limits.js  —  Baton skill helper
+ * probe-limits.js  --  Baton skill helper
  *
  * SECURITY NOTICE
  * This script reads ~/.openclaw/openclaw.json (provider configs, API key references)
- * and ~/.openclaw/agents/*/agent/models.json (per-agent model configs).
+ * and ~/.openclaw/agents/<id>/agent/models.json (per-agent model configs).
  * API keys are resolved from environment variables or config only to make outbound
  * HTTP requests to provider rate-limit APIs. Keys are NEVER written to stdout,
  * logged to stderr, stored in any Baton state file, or included in any output JSON.
@@ -44,7 +44,7 @@ function log(m){process.stderr.write('[probe-limits] '+m+'\n');}
 /**
  * Sanitise any object before writing to stdout.
  * Removes fields that could contain API key material.
- * Keys are used only in-memory for HTTP requests — never output.
+ * Keys are used only in-memory for HTTP requests -- never output.
  */
 function sanitiseOutput(obj) {
   if (!obj || typeof obj !== 'object') return obj;
@@ -164,7 +164,7 @@ async function buildRegistry() {
     };
   }
 
-  // ── Source 1: models.providers — custom providers defined in openclaw.json ─
+  // -- Source 1: models.providers -- custom providers defined in openclaw.json -
   // User-defined providers (Ollama, vLLM, custom APIs etc.) with full model metadata.
   const customProviders = cfg?.models?.providers ?? {};
   for (const [providerId, providerConf] of Object.entries(customProviders)) {
@@ -184,7 +184,7 @@ async function buildRegistry() {
     }
   }
 
-  // ── Source 2: agents.defaults.models — OpenClaw auth system allowlist ──────
+  // -- Source 2: agents.defaults.models -- OpenClaw auth system allowlist ------
   // Models in provider/model format backed by auth.profiles (OAuth, API keys).
   const agentDefaultModels = cfg?.agents?.defaults?.models ?? {};
   for (const [modelRef, modelMeta] of Object.entries(agentDefaultModels)) {
@@ -219,7 +219,7 @@ async function buildRegistry() {
     }
   }
 
-  // ── Source 3: openclaw models list --json — authoritative resolved catalog ─
+  // -- Source 3: openclaw models list --json -- authoritative resolved catalog -
   // Fills gaps (auth status, contextWindow for built-in providers) and surfaces
   // any additional models OpenClaw knows about. Non-fatal if this fails.
   try {
@@ -253,7 +253,7 @@ async function buildRegistry() {
     log(`WARNING: openclaw models list failed (${e.message}); registry built from config only`);
   }
 
-  // ── Source 4: per-agent models.json files ──────────────────────────────────
+  // -- Source 4: per-agent models.json files ----------------------------------
   // Agent-scoped models not surfaced by any of the above sources.
   try {
     const agentsDir = path.join(HOME, '.openclaw', 'agents');
@@ -382,7 +382,7 @@ function modelInfo(modelId){
     alternateQuery:`${provider} ${name} benchmark speed context window review`,
     extractFields:['Best use cases','Poor use cases','Speed/throughput','Context window','Reasoning model?','Multimodal support?','Tool use support?'],
     fallback:'ask_user'
-  }));
+  });
 }
 
 async function probeAllProviders(){

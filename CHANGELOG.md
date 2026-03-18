@@ -4,6 +4,14 @@ All notable changes to Baton will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] -- 2026-03-18
+
+### Fixed
+- Added `package.json` with `"type": "module"` at the skill root so Node.js treats all scripts as ESM (fixes "missing ) after argument list" error when running probe-limits.js or task-manager.js)
+- Removed all non-ASCII characters from both scripts (em dashes, box-drawing chars, section sign, non-breaking spaces) -- Node's ESM parser is stricter than CJS about source encoding
+- Fixed premature block comment terminator in probe-limits.js: `agents/*/agent` glob in JSDoc was being parsed as `*/` closing the comment, corrupting everything after it
+- Fixed extra closing parenthesis on line 385 of probe-limits.js (exposed once comment issue was resolved)
+
 ## [1.0.6] — 2026-03-18
 
 ### Added
